@@ -23,7 +23,7 @@ logging.basicConfig(
 
 class MQTT_Handler(object):
     def __init__(self):
-        self.mqtt_server = "192.168.0.11"
+        self.mqtt_server = "YOUR_IP"
         self.mqtt_port = 1883
         self.mqtt_sub_remote_service = TOPIC + "cmd"
         self.mqtt_sub_get_status = TOPIC + "get"
