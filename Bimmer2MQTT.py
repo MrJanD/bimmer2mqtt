@@ -9,6 +9,7 @@ import sys
 import threading
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
+import logging
 
 from pathlib import Path
 
@@ -20,6 +21,11 @@ from bimmer_connected.vehicle import VehicleViewDirection
 
 TEXT_VIN = 'Vehicle Identification Number'
 TOPIC = "Mobility/MiniCooperSE/"
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S')
 
 
 class MQTT_Handler(object):
@@ -35,7 +41,7 @@ class MQTT_Handler(object):
         self.client = mqtt.Client()
 
     def on_connect(self, client, userdata, flags, rc):
-        print("Connected with result code "+str(rc))
+        logging.info("Connected with result code "+str(rc))
         client.subscribe(self.mqtt_sub_get_status)
         client.message_callback_add(self.mqtt_sub_get_status, self.car_get_status)
         client.subscribe(self.mqtt_sub_remote_service)
@@ -43,11 +49,11 @@ class MQTT_Handler(object):
         client.publish(self.mqtt_pub_serviceState, "Online", retain = True)
 
     def on_disconnect(self, client, userdata, rc):
-        print("Disconnected with result code "+str(rc))
+        logging.info("Disconnected with result code "+str(rc))
         client.publish(self.mqtt_pub_serviceState, "Offline", retain = True)
 
     def car_execute(self, client, userdata, message):
-        print("car_execute: " + message.topic + " " + str(message.payload))
+        logging.info("car_execute: " + message.topic + " " + str(message.payload))
         payload = str(message.payload).strip('\'').split()
         sw = ServiceWrapper(payload[0], payload[1], payload[2], payload[3], payload[4])
         token = MQTTClient_deliveryToken()
@@ -55,7 +61,7 @@ class MQTT_Handler(object):
         client.publish(self.mqtt_pub_executionState, "DELIVERED")
 
     def car_get_status(self, client, userdata, message):
-        print("car_get_status: " + message.topic + " " + str(message.payload))
+        logging.info("car_get_status: " + message.topic + " " + str(message.payload))
         payload = str(message.payload).strip('\'').split()
         sw = ServiceWrapper(payload[0], payload[1], payload[2], payload[3], payload[4])
         vehicleData = sw.get_status()
@@ -111,7 +117,7 @@ class ServiceWrapper(object):
         vehicle = account.get_vehicle(self.VIN)
         if not vehicle:
             valid_vins = ", ".join(v.vin for v in account.vehicles)
-            print('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
+            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
             return
         status = vehicle.remote_services.trigger_remote_light_flash()
         return status.state
@@ -122,7 +128,7 @@ class ServiceWrapper(object):
         vehicle = account.get_vehicle(self.VIN)
         if not vehicle:
             valid_vins = ", ".join(v.vin for v in account.vehicles)
-            print('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
+            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
             return
         status = vehicle.remote_services.trigger_remote_door_lock()
         return status.state
@@ -133,7 +139,7 @@ class ServiceWrapper(object):
         vehicle = account.get_vehicle(self.VIN)
         if not vehicle:
             valid_vins = ", ".join(v.vin for v in account.vehicles)
-            print('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
+            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
             return
         status = vehicle.remote_services.trigger_remote_door_unlock()
         return status.state
@@ -144,7 +150,7 @@ class ServiceWrapper(object):
         vehicle = account.get_vehicle(self.VIN)
         if not vehicle:
             valid_vins = ", ".join(v.vin for v in account.vehicles)
-            print('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
+            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
             return
         status = vehicle.remote_services.trigger_remote_air_conditioning()
         return status.state
@@ -155,7 +161,7 @@ class ServiceWrapper(object):
         vehicle = account.get_vehicle(self.VIN)
         if not vehicle:
             valid_vins = ", ".join(v.vin for v in account.vehicles)
-            print('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
+            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
             return
         status = vehicle.remote_services.trigger_remote_horn()
         return status.state
