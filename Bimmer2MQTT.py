@@ -23,7 +23,7 @@ logging.basicConfig(
 
 class MQTT_Handler(object):
     def __init__(self):
-        self.mqtt_server = "YOUR_MQTT_BROKER_IP"
+        self.mqtt_server = "192.168.0.11"
         self.mqtt_port = 1883
         self.mqtt_sub_remote_service = TOPIC + "cmd"
         self.mqtt_sub_get_status = TOPIC + "get"
@@ -50,8 +50,8 @@ class MQTT_Handler(object):
         payload = str(message.payload).strip('\'').split()
         sw = ServiceWrapper(payload[0], payload[1], payload[2], payload[3], payload[4])
         token = MQTTClient_deliveryToken()
-        sw.runCmd()
-        client.publish(self.mqtt_pub_executionState, "DELIVERED")
+        returnData = sw.runCmd()
+        client.publish(self.mqtt_pub_executionState, returnData)
 
     def car_get_status(self, client, userdata, message):
         logging.info("car_get_status: " + message.topic + " " + str(message.payload))
@@ -93,7 +93,16 @@ class ServiceWrapper(object):
         else:
             return 'invalid command'
 
-    def get_status(self) -> None:
+    def get_vehicle(self):
+        account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
+        vehicle = account.get_vehicle(self.VIN)
+        if not vehicle:
+            valid_vins = ", ".join(v.vin for v in account.vehicles)
+            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
+            return
+        return vehicle
+
+    def get_status(self):
         """Get the vehicle status."""
         account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
         account.update_vehicle_states()
@@ -104,60 +113,45 @@ class ServiceWrapper(object):
                 vData['status'] = json.dumps(vehicle.state.vehicle_status.attributes, indent=4)
         return vData
 
-    def light_flash(self) -> None:
+    def light_flash(self):
         """Trigger the vehicle to flash its lights."""
-        account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
-        vehicle = account.get_vehicle(self.VIN)
-        if not vehicle:
-            valid_vins = ", ".join(v.vin for v in account.vehicles)
-            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
-            return
-        status = vehicle.remote_services.trigger_remote_light_flash()
-        return status.state
+        vehicle = self.get_vehicle()
+        if vehicle:
+            status = vehicle.remote_services.trigger_remote_light_flash()
+            return status.state
+        return 'INVALID VIN'
 
-    def lock_doors(self) -> None:
+    def lock_doors(self):
         """Trigger the vehicle to lock its doors."""
-        account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
-        vehicle = account.get_vehicle(self.VIN)
-        if not vehicle:
-            valid_vins = ", ".join(v.vin for v in account.vehicles)
-            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
-            return
-        status = vehicle.remote_services.trigger_remote_door_lock()
-        return status.state
+        vehicle = self.get_vehicle()
+        if vehicle:
+            status = vehicle.remote_services.trigger_remote_door_lock()
+            return status.state
+        return 'INVALID VIN'
 
-    def unlock_doors(self) -> None:
+    def unlock_doors(self):
         """Trigger the vehicle to unlock its doors."""
-        account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
-        vehicle = account.get_vehicle(self.VIN)
-        if not vehicle:
-            valid_vins = ", ".join(v.vin for v in account.vehicles)
-            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
-            return
-        status = vehicle.remote_services.trigger_remote_door_unlock()
-        return status.state
+        vehicle = self.get_vehicle()
+        if vehicle:
+            status = vehicle.remote_services.trigger_remote_door_unlock()
+            return status.state
+        return 'INVALID VIN'
 
-    def air_conditioning(self) -> None:
+    def air_conditioning(self):
         """Trigger the vehicle to enable air conditioning"""
-        account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
-        vehicle = account.get_vehicle(self.VIN)
-        if not vehicle:
-            valid_vins = ", ".join(v.vin for v in account.vehicles)
-            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
-            return
-        status = vehicle.remote_services.trigger_remote_air_conditioning()
-        return status.state
+        vehicle = self.get_vehicle()
+        if vehicle:
+            status = vehicle.remote_services.trigger_remote_air_conditioning()
+            return status.state
+        return 'INVALID VIN'
 
-    def blow_horn(self) -> None:
+    def blow_horn(self):
         """Trigger the vehicle to blow its horn"""
-        account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
-        vehicle = account.get_vehicle(self.VIN)
-        if not vehicle:
-            valid_vins = ", ".join(v.vin for v in account.vehicles)
-            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
-            return
-        status = vehicle.remote_services.trigger_remote_horn()
-        return status.state
+        vehicle = self.get_vehicle()
+        if vehicle:
+            status = vehicle.remote_services.trigger_remote_horn()
+            return status.state
+        return 'INVALID VIN'
 
 
 mqtt_handler = MQTT_Handler()
