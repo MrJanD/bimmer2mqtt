@@ -1,2 +1,3 @@
 paho-mqtt>=1.5.1
 bimmer-connected>=0.7.14
+geocoder

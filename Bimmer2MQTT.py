@@ -8,6 +8,7 @@ import paho.mqtt.client as mqtt
 import paho.mqtt.publish as publish
 import logging
 import requests
+import geocoder
 
 from bimmer_connected.account import ConnectedDriveAccount
 from bimmer_connected.country_selector import get_region_from_name, valid_regions
@@ -20,6 +21,8 @@ logging.basicConfig(
     level=logging.INFO,
     datefmt='%Y-%m-%d %H:%M:%S')
 
+GeoCoords =  { "lat": 0, "lon": 0 }
+
 
 class MQTT_Handler(object):
     def __init__(self):
@@ -29,6 +32,7 @@ class MQTT_Handler(object):
         self.mqtt_sub_get_status = TOPIC + "get"
         self.mqtt_pub_properties = TOPIC + "properties"
         self.mqtt_pub_vehicleState = TOPIC + "vehicleState"
+        self.mqtt_pub_vehicleLocation = TOPIC + "vehicleLocation"
         self.mqtt_pub_executionState = TOPIC + "executionState"
         self.mqtt_pub_serviceState = "Mobility/service/state"
         self.client = mqtt.Client()
@@ -61,6 +65,7 @@ class MQTT_Handler(object):
         client.publish(self.mqtt_pub_executionState, "DELIVERED")
         client.publish(self.mqtt_pub_properties, vehicleData['properties'])
         client.publish(self.mqtt_pub_vehicleState, vehicleData['status'])
+        client.publish(self.mqtt_pub_vehicleLocation, vehicleData['location'])
 
     def run(self):
         self.client.on_connect = self.on_connect
@@ -111,6 +116,8 @@ class ServiceWrapper(object):
             if self.VIN == vehicle.vin:
                 vData['properties'] = json.dumps(vehicle.attributes, indent=4)
                 vData['status'] = json.dumps(vehicle.state.vehicle_status.attributes, indent=4)
+                pos = vehicle.state.vehicle_status.attributes['position']
+                vData['location'] = json.dumps(geocoder.osm(str(pos['lat']) + ', ' + str(pos['lon'])).osm, indent=4)
         return vData
 
     def light_flash(self):
