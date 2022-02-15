@@ -29,18 +29,11 @@ class MQTT_Handler(object):
         self.mqtt_server = "192.168.0.11"
         self.mqtt_port = 1883
         self.mqtt_sub_remote_service = TOPIC + "cmd"
-        self.mqtt_sub_get_status = TOPIC + "get"
-        self.mqtt_pub_properties = TOPIC + "properties"
-        self.mqtt_pub_vehicleState = TOPIC + "vehicleState"
-        self.mqtt_pub_vehicleLocation = TOPIC + "vehicleLocation"
-        self.mqtt_pub_executionState = TOPIC + "executionState"
         self.mqtt_pub_serviceState = "Mobility/service/state"
         self.client = mqtt.Client()
 
     def on_connect(self, client, userdata, flags, rc):
         logging.info("Connected with result code "+str(rc))
-        client.subscribe(self.mqtt_sub_get_status)
-        client.message_callback_add(self.mqtt_sub_get_status, self.car_get_status)
         client.subscribe(self.mqtt_sub_remote_service)
         client.message_callback_add(self.mqtt_sub_remote_service, self.car_execute)
         client.publish(self.mqtt_pub_serviceState, "Online", retain = True)
@@ -53,19 +46,9 @@ class MQTT_Handler(object):
         logging.info("car_execute: " + message.topic + " " + str(message.payload))
         payload = str(message.payload).strip('\'').split()
         sw = ServiceWrapper(payload[0], payload[1], payload[2], payload[3], payload[4])
-        token = MQTTClient_deliveryToken()
         returnData = sw.runCmd()
-        client.publish(self.mqtt_pub_executionState, returnData)
-
-    def car_get_status(self, client, userdata, message):
-        logging.info("car_get_status: " + message.topic + " " + str(message.payload))
-        payload = str(message.payload).strip('\'').split()
-        sw = ServiceWrapper(payload[0], payload[1], payload[2], payload[3], payload[4])
-        vehicleData = sw.get_status()
-        client.publish(self.mqtt_pub_executionState, "DELIVERED")
-        client.publish(self.mqtt_pub_properties, vehicleData['properties'])
-        client.publish(self.mqtt_pub_vehicleState, vehicleData['status'])
-        client.publish(self.mqtt_pub_vehicleLocation, vehicleData['location'])
+        for key in returnData:
+            client.publish(TOPIC + key, returnData[key])
 
     def run(self):
         self.client.on_connect = self.on_connect
@@ -83,7 +66,7 @@ class ServiceWrapper(object):
         self.VIN = vin
 
     def runCmd(self):
-        if self.Cmd.lower() == 'state' or self.Cmd == 'status':
+        if 'state' in self.Cmd.lower() or 'status' in self.Cmd.lower():
             return self.get_status()
         elif 'light' in self.Cmd.lower():
             return self.light_flash()
@@ -95,8 +78,10 @@ class ServiceWrapper(object):
             return self.air_conditioning()
         elif 'horn' in self.Cmd.lower():
             return self.blow_horn()
+        elif 'charge' in self.Cmd.lower():
+            return self.charge_now()
         else:
-            return 'invalid command'
+            return { "executionState" : "invalid command: " + self.Cmd}
 
     def get_vehicle(self):
         account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
@@ -114,10 +99,10 @@ class ServiceWrapper(object):
         vData = dict()
         for vehicle in account.vehicles:
             if self.VIN == vehicle.vin:
-                vData['properties'] = json.dumps(vehicle.attributes, indent=4)
-                vData['status'] = json.dumps(vehicle.state.vehicle_status.attributes, indent=4)
-                pos = vehicle.state.vehicle_status.attributes['position']
-                vData['location'] = json.dumps(geocoder.osm(str(pos['lat']) + ', ' + str(pos['lon'])).osm, indent=4)
+                vData['properties'] = json.dumps(vehicle.status.properties, indent=4)
+                vData['status'] = json.dumps(vehicle.status.status, indent=4)
+                vData['active'] = vehicle.status.is_vehicle_active
+                vData['mileage'] = vehicle.status.mileage[0]
         return vData
 
     def light_flash(self):
@@ -125,40 +110,48 @@ class ServiceWrapper(object):
         vehicle = self.get_vehicle()
         if vehicle:
             status = vehicle.remote_services.trigger_remote_light_flash()
-            return status.state
-        return 'INVALID VIN'
+            return { "executionState" : status.state.value }
+        return { "executionState" : "INVALID VIN" }
 
     def lock_doors(self):
         """Trigger the vehicle to lock its doors."""
         vehicle = self.get_vehicle()
         if vehicle:
             status = vehicle.remote_services.trigger_remote_door_lock()
-            return status.state
-        return 'INVALID VIN'
+            return { "executionState" : status.state.value }
+        return { "executionState" : "INVALID VIN" }
 
     def unlock_doors(self):
         """Trigger the vehicle to unlock its doors."""
         vehicle = self.get_vehicle()
         if vehicle:
             status = vehicle.remote_services.trigger_remote_door_unlock()
-            return status.state
-        return 'INVALID VIN'
+            return { "executionState" : status.state.value }
+        return { "executionState" : "INVALID VIN" }
 
     def air_conditioning(self):
         """Trigger the vehicle to enable air conditioning"""
         vehicle = self.get_vehicle()
         if vehicle:
             status = vehicle.remote_services.trigger_remote_air_conditioning()
-            return status.state
-        return 'INVALID VIN'
+            return { "executionState" : status.state.value }
+        return { "executionState" : "INVALID VIN" }
 
     def blow_horn(self):
         """Trigger the vehicle to blow its horn"""
         vehicle = self.get_vehicle()
         if vehicle:
             status = vehicle.remote_services.trigger_remote_horn()
-            return status.state
-        return 'INVALID VIN'
+            return { "executionState" : status.state.value }
+        return { "executionState" : "INVALID VIN" }
+
+    def charge_now(self):
+        """Trigger the vehicle to charge now."""
+        vehicle = self.get_vehicle()
+        if vehicle:
+            status = vehicle.remote_services.trigger_charge_now()
+            return { "executionState" : status.state.value }
+        return { "executionState" : "INVALID VIN" }
 
 
 mqtt_handler = MQTT_Handler()
