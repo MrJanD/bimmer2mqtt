@@ -20,6 +20,7 @@ from bimmer_connected.vehicle import VehicleViewDirection
 TOPIC = "Mobility/CarName/"
 MQTT_SERVER = "192.168.0.1"
 MQTT_PORT = 1883
+REGION = Regions.REST_OF_WORLD
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
@@ -47,7 +48,7 @@ class MQTT_Handler(object):
     def car_execute(self, client, userdata, message):
         logging.info("car_execute: " + message.topic + " " + str(message.payload))
         payload = str(message.payload).strip('\'').split()
-        sw = ServiceWrapper(payload[0], payload[1], payload[2], payload[3], payload[4])
+        sw = ServiceWrapper(payload[0], payload[1], payload[2], payload[3])
         returnData = sw.runCmd()
         for key in returnData:
             client.publish(TOPIC + key, returnData[key])
@@ -62,11 +63,11 @@ class MQTT_Handler(object):
         self.client.loop_forever()
 
 class ServiceWrapper(object):
-    def __init__(self, cmd, username, password, region, vin):
+    def __init__(self, cmd, username, password, vin):
         self.Cmd = cmd
         self.User = username
         self.Password = password
-        self.Region = region
+        self.Region = REGION
         self.VIN = vin
 
     def runCmd(self):
@@ -88,7 +89,7 @@ class ServiceWrapper(object):
             return { "executionState" : "invalid command: " + self.Cmd}
 
     def get_vehicle(self):
-        account = MyBMWAccount(self.User, self.Password, Regions.REST_OF_WORLD)
+        account = MyBMWAccount(self.User, self.Password, REGION)
         asyncio.run(account.get_vehicles())
         return account.get_vehicle(self.VIN)
 
