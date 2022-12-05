@@ -9,27 +9,29 @@ import paho.mqtt.publish as publish
 import logging
 import requests
 import geocoder
+import asyncio
 
 from bimmer_connected.account import ConnectedDriveAccount
-from bimmer_connected.country_selector import get_region_from_name, valid_regions
+from bimmer_connected.account import MyBMWAccount
+from bimmer_connected.api.regions import Regions
 from bimmer_connected.vehicle import VehicleViewDirection
 
-TOPIC = "Mobility/MiniCooperSE/"
+### Replace the following variables with values of your choice
+TOPIC = "Mobility/CarName/"
+MQTT_SERVER = "192.168.0.1"
+MQTT_PORT = 1883
 
 logging.basicConfig(
     format='%(asctime)s %(levelname)-8s %(message)s',
     level=logging.INFO,
     datefmt='%Y-%m-%d %H:%M:%S')
 
-GeoCoords =  { "lat": 0, "lon": 0 }
-
-
 class MQTT_Handler(object):
     def __init__(self):
-        self.mqtt_server = "192.168.0.11"
-        self.mqtt_port = 1883
+        self.mqtt_server = MQTT_SERVER
+        self.mqtt_port = MQTT_PORT
         self.mqtt_sub_remote_service = TOPIC + "cmd"
-        self.mqtt_pub_serviceState = "Mobility/service/state"
+        self.mqtt_pub_serviceState = TOPIC + "state"
         self.client = mqtt.Client()
 
     def on_connect(self, client, userdata, flags, rc):
@@ -51,6 +53,8 @@ class MQTT_Handler(object):
             client.publish(TOPIC + key, returnData[key])
 
     def run(self):
+        ### Comment in and replace user and pw if your MQTT server requires login credentials
+        #self.client.username_pw_set(username="USERNAME", password="PASSWORD")
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
         self.client.will_set(self.mqtt_pub_serviceState, "Offline", retain = True)
@@ -84,32 +88,19 @@ class ServiceWrapper(object):
             return { "executionState" : "invalid command: " + self.Cmd}
 
     def get_vehicle(self):
-        account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
-        vehicle = account.get_vehicle(self.VIN)
-        if not vehicle:
-            valid_vins = ", ".join(v.vin for v in account.vehicles)
-            logging.info('Error: Could not find vehicle for VIN "{}". Valid VINs are: {}'.format(args.vin, valid_vins))
-            return
-        return vehicle
+        account = MyBMWAccount(self.User, self.Password, Regions.REST_OF_WORLD)
+        asyncio.run(account.get_vehicles())
+        return account.get_vehicle(self.VIN)
 
     def get_status(self):
         """Get the vehicle status."""
-        account = ConnectedDriveAccount(self.User, self.Password, get_region_from_name(self.Region))
-        account.update_vehicle_states()
-        vData = dict()
-        for vehicle in account.vehicles:
-            if self.VIN == vehicle.vin:
-                vData['properties'] = json.dumps(vehicle.status.properties, indent=4)
-                vData['status'] = json.dumps(vehicle.status.status, indent=4)
-                vData['active'] = vehicle.status.is_vehicle_active
-                vData['mileage'] = vehicle.status.mileage[0]
-        return vData
+        return self.get_vehicle().data
 
     def light_flash(self):
         """Trigger the vehicle to flash its lights."""
         vehicle = self.get_vehicle()
         if vehicle:
-            status = vehicle.remote_services.trigger_remote_light_flash()
+            status = asyncio.run(vehicle.remote_services.trigger_remote_light_flash())
             return { "executionState" : status.state.value }
         return { "executionState" : "INVALID VIN" }
 
@@ -117,7 +108,7 @@ class ServiceWrapper(object):
         """Trigger the vehicle to lock its doors."""
         vehicle = self.get_vehicle()
         if vehicle:
-            status = vehicle.remote_services.trigger_remote_door_lock()
+            status = asyncio.run(vehicle.remote_services.trigger_remote_door_lock())
             return { "executionState" : status.state.value }
         return { "executionState" : "INVALID VIN" }
 
@@ -125,7 +116,7 @@ class ServiceWrapper(object):
         """Trigger the vehicle to unlock its doors."""
         vehicle = self.get_vehicle()
         if vehicle:
-            status = vehicle.remote_services.trigger_remote_door_unlock()
+            status = asyncio.run(vehicle.remote_services.trigger_remote_door_unlock())
             return { "executionState" : status.state.value }
         return { "executionState" : "INVALID VIN" }
 
@@ -133,7 +124,7 @@ class ServiceWrapper(object):
         """Trigger the vehicle to enable air conditioning"""
         vehicle = self.get_vehicle()
         if vehicle:
-            status = vehicle.remote_services.trigger_remote_air_conditioning()
+            status = asyncio.run(vehicle.remote_services.trigger_remote_air_conditioning())
             return { "executionState" : status.state.value }
         return { "executionState" : "INVALID VIN" }
 
@@ -141,7 +132,7 @@ class ServiceWrapper(object):
         """Trigger the vehicle to blow its horn"""
         vehicle = self.get_vehicle()
         if vehicle:
-            status = vehicle.remote_services.trigger_remote_horn()
+            status = asyncio.run(vehicle.remote_services.trigger_remote_horn())
             return { "executionState" : status.state.value }
         return { "executionState" : "INVALID VIN" }
 
@@ -149,10 +140,9 @@ class ServiceWrapper(object):
         """Trigger the vehicle to charge now."""
         vehicle = self.get_vehicle()
         if vehicle:
-            status = vehicle.remote_services.trigger_charge_now()
+            status = asyncio.run(vehicle.remote_services.trigger_charge_now())
             return { "executionState" : status.state.value }
         return { "executionState" : "INVALID VIN" }
-
 
 mqtt_handler = MQTT_Handler()
 mqtt_handler.run()
