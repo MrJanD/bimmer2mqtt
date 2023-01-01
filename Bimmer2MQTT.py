@@ -49,9 +49,9 @@ class MQTT_Handler(object):
         logging.info("car_execute: " + message.topic + " " + str(message.payload))
         payload = str(message.payload).strip('\'').split()
         sw = ServiceWrapper(payload[0], payload[1], payload[2], payload[3])
-        returnData = sw.runCmd()
-        for key in returnData:
-            client.publish(TOPIC + key, returnData[key])
+								
+							  
+        client.publish(TOPIC + "status", sw.runCmd())
 
     def run(self):
         ### Comment in and replace user and pw if your MQTT server requires login credentials
@@ -86,64 +86,64 @@ class ServiceWrapper(object):
         elif 'charge' in self.Cmd.lower():
             return self.charge_now()
         else:
-            return { "executionState" : "invalid command: " + self.Cmd}
+            return "{ executionState : INVALID_COMMAND }"
 
     def get_vehicle(self):
         account = MyBMWAccount(self.User, self.Password, REGION)
-        asyncio.run(account.get_vehicles())
+        status = asyncio.run(account.get_vehicles())
         return account.get_vehicle(self.VIN)
 
     def get_status(self):
         """Get the vehicle status."""
-        return self.get_vehicle().data
+        return json.dumps(self.get_vehicle().data, default=lambda o: '<not serializable>')
 
     def light_flash(self):
         """Trigger the vehicle to flash its lights."""
         vehicle = self.get_vehicle()
         if vehicle:
             status = asyncio.run(vehicle.remote_services.trigger_remote_light_flash())
-            return { "executionState" : status.state.value }
-        return { "executionState" : "INVALID VIN" }
+            return "{ executionState : "+ status.state.value + " }"
+        return "{ executionState : INVALID_VIN }"
 
     def lock_doors(self):
         """Trigger the vehicle to lock its doors."""
         vehicle = self.get_vehicle()
         if vehicle:
             status = asyncio.run(vehicle.remote_services.trigger_remote_door_lock())
-            return { "executionState" : status.state.value }
-        return { "executionState" : "INVALID VIN" }
+            return "{ executionState : "+ status.state.value + " }"
+        return "{ executionState : INVALID_VIN }"
 
     def unlock_doors(self):
         """Trigger the vehicle to unlock its doors."""
         vehicle = self.get_vehicle()
         if vehicle:
             status = asyncio.run(vehicle.remote_services.trigger_remote_door_unlock())
-            return { "executionState" : status.state.value }
-        return { "executionState" : "INVALID VIN" }
+            return "{ executionState : "+ status.state.value + " }"
+        return "{ executionState : INVALID_VIN }"
 
     def air_conditioning(self):
         """Trigger the vehicle to enable air conditioning"""
         vehicle = self.get_vehicle()
         if vehicle:
             status = asyncio.run(vehicle.remote_services.trigger_remote_air_conditioning())
-            return { "executionState" : status.state.value }
-        return { "executionState" : "INVALID VIN" }
+            return "{ executionState : "+ status.state.value + " }"
+        return "{ executionState : INVALID_VIN }"
 
     def blow_horn(self):
         """Trigger the vehicle to blow its horn"""
         vehicle = self.get_vehicle()
         if vehicle:
             status = asyncio.run(vehicle.remote_services.trigger_remote_horn())
-            return { "executionState" : status.state.value }
-        return { "executionState" : "INVALID VIN" }
+            return "{ executionState : "+ status.state.value + " }"
+        return "{ executionState : INVALID_VIN }"
 
     def charge_now(self):
         """Trigger the vehicle to charge now."""
         vehicle = self.get_vehicle()
         if vehicle:
             status = asyncio.run(vehicle.remote_services.trigger_charge_now())
-            return { "executionState" : status.state.value }
-        return { "executionState" : "INVALID VIN" }
+            return "{ executionState : "+ status.state.value + " }"
+        return "{ executionState : INVALID_VIN }"
 
 mqtt_handler = MQTT_Handler()
 mqtt_handler.run()
