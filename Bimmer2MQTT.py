@@ -49,8 +49,6 @@ class MQTT_Handler(object):
         logging.info("car_execute: " + message.topic + " " + str(message.payload))
         payload = str(message.payload).strip('\'').split()
         sw = ServiceWrapper(payload[0], payload[1], payload[2], payload[3])
-								
-							  
         client.publish(TOPIC + "status", sw.runCmd())
 
     def run(self):
